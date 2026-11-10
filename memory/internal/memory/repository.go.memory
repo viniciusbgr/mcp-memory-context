@@ -1,0 +1,20 @@
+---
+type: source
+gaps: []
+---
+
+# Summary
+
+- `Repository` reads project memory documents and their explicitly declared gaps from one validated root directory.
+- It extracts declared `.memory` references and allows hierarchical reads only when a parent document explicitly declares the child.
+
+# Dependencies
+
+- Standard library: context, errors, fmt, os, path/filepath, regexp, strings.
+
+# Rules
+
+- Paths must be relative `.memory` files and may not escape the configured root.
+- Symlink targets must remain under the resolved memory root.
+- The LLM never receives unrestricted file-system access; the repository enforces index declarations.
+- Missing `gaps` and `gaps: []` both mean no explicitly declared gaps.

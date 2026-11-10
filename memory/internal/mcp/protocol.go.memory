@@ -1,0 +1,19 @@
+---
+type: source
+gaps: []
+---
+
+# Summary
+
+- `Server` exposes `explain_feature` through stdio JSON-RPC MCP transport.
+- The tool accepts a natural-language question and returns the synthesized explanation JSON as MCP text content.
+
+# Dependencies
+
+- Internal: `internal/explainer`.
+- Standard library: bufio, context, encoding/json, fmt, io, strings.
+
+# Rules
+
+- Tool errors are explicit MCP error results.
+- The protocol never exposes raw memory document contents directly.

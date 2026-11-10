@@ -17,10 +17,13 @@ var (
 	DefaultModel   = os.Getenv("OLLAMA_MODEL")
 )
 
+const DefaultSystemPrompt = `You are the project's context specialist. Produce concise, actionable context for an agent implementing or changing a feature. Follow the requested output format exactly. For explanatory answers, use only these section titles when applicable: Objective, Flow, Rules and invariants, Extension points, and Relevant source files. Include only information supported by supplied project knowledge. Do not infer missing behavior, limitations, configuration, or implementation details. Never output a Gaps section: the server returns explicitly declared gaps separately. Do not state that something is absent unless the supplied project knowledge explicitly says it is absent. When a fact is uncertain, write "Not established by the supplied project knowledge" inline with that fact rather than guessing. Do not mention memory files or the retrieval process. Include a section only when it contains evidence-backed, actionable information. Omit empty sections and avoid generic advice.`
+
 type Config struct {
-	BaseURL    string
-	Model      string
-	HTTPClient *http.Client
+	BaseURL      string
+	Model        string
+	SystemPrompt string
+	HTTPClient   *http.Client
 }
 
 type generateAPI interface {
@@ -28,8 +31,9 @@ type generateAPI interface {
 }
 
 type Client struct {
-	api   generateAPI
-	model string
+	api          generateAPI
+	model        string
+	systemPrompt string
 }
 
 func NewClient(config Config) (*Client, error) {
@@ -59,6 +63,10 @@ func NewClient(config Config) (*Client, error) {
 	if strings.TrimSpace(model) == "" {
 		return nil, errors.New("OLLAMA_MODEL is required")
 	}
+	systemPrompt := config.SystemPrompt
+	if systemPrompt == "" {
+		systemPrompt = DefaultSystemPrompt
+	}
 
 	httpClient := config.HTTPClient
 	if httpClient == nil {
@@ -66,8 +74,9 @@ func NewClient(config Config) (*Client, error) {
 	}
 
 	return &Client{
-		api:   api.NewClient(parsedURL, httpClient),
-		model: model,
+		api:          api.NewClient(parsedURL, httpClient),
+		model:        model,
+		systemPrompt: systemPrompt,
 	}, nil
 }
 
@@ -76,6 +85,7 @@ func (c *Client) Generate(ctx context.Context, prompt string) (string, error) {
 	request := &api.GenerateRequest{
 		Model:  c.model,
 		Prompt: prompt,
+		System: c.systemPrompt,
 		Stream: &stream,
 	}
 

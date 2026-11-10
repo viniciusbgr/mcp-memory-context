@@ -32,6 +32,7 @@ func TestClientGenerateUsesEnvironmentBackedDefaults(t *testing.T) {
 		var request struct {
 			Model  string `json:"model"`
 			Prompt string `json:"prompt"`
+			System string `json:"system"`
 			Stream *bool  `json:"stream"`
 		}
 		if err := decodeRequest(r, &request); err != nil {
@@ -43,6 +44,9 @@ func TestClientGenerateUsesEnvironmentBackedDefaults(t *testing.T) {
 		}
 		if request.Prompt != "summarize this code" {
 			t.Errorf("request prompt = %q, want %q", request.Prompt, "summarize this code")
+		}
+		if request.System != DefaultSystemPrompt {
+			t.Errorf("request system prompt = %q, want %q", request.System, DefaultSystemPrompt)
 		}
 		if request.Stream == nil || *request.Stream {
 			t.Errorf("request stream = %v, want false", request.Stream)
@@ -87,9 +91,11 @@ func TestNewClientRequiresEnvironmentBackedSettings(t *testing.T) {
 
 func TestClientGenerateUsesConfiguredModel(t *testing.T) {
 	const model = "custom-model"
+	const systemPrompt = "Respond using concise sentences."
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request struct {
-			Model string `json:"model"`
+			Model  string `json:"model"`
+			System string `json:"system"`
 		}
 		if err := decodeRequest(r, &request); err != nil {
 			t.Errorf("decode request: %v", err)
@@ -98,14 +104,18 @@ func TestClientGenerateUsesConfiguredModel(t *testing.T) {
 		if request.Model != model {
 			t.Errorf("request model = %q, want %q", request.Model, model)
 		}
+		if request.System != systemPrompt {
+			t.Errorf("request system prompt = %q, want %q", request.System, systemPrompt)
+		}
 		_, _ = fmt.Fprint(w, `{"response":"ok","done":true}`)
 	}))
 	defer server.Close()
 
 	client, err := NewClient(Config{
-		BaseURL:    server.URL,
-		Model:      model,
-		HTTPClient: server.Client(),
+		BaseURL:      server.URL,
+		Model:        model,
+		SystemPrompt: systemPrompt,
+		HTTPClient:   server.Client(),
 	})
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)

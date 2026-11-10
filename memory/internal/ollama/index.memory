@@ -1,0 +1,12 @@
+---
+type: index
+gaps: []
+---
+
+# Ollama Client
+
+This package configures and invokes the local Ollama generation API used by the MCP server.
+
+- memory/internal/ollama/client.go.memory
+- memory/internal/ollama/client_test.go.memory
+- memory/internal/ollama/client_integration_test.go.memory

@@ -1,0 +1,13 @@
+---
+type: test
+gaps: []
+---
+
+# Summary
+
+- Verifies that the repository reads a project index, follows only references declared by that index, and parses declared gaps.
+- Verifies rejection of undeclared files and path traversal attempts.
+
+# Coverage
+
+- Covers hierarchical memory access and root-boundary validation.

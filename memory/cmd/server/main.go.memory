@@ -1,0 +1,17 @@
+---
+type: source
+gaps: []
+---
+
+# Summary
+
+- The server entry point constructs the memory repository, configured local LLM client, explanation service, and stdio MCP server.
+
+# Dependencies
+
+- Internal: `internal/explainer`, `internal/mcp`, `internal/memory`, `internal/ollama`.
+
+# Rules
+
+- `MEMORY_ROOT` defaults to the local `memory` directory.
+- The LLM client reads its existing runtime configuration from environment variables.

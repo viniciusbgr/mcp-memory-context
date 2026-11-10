@@ -1,0 +1,19 @@
+---
+type: source
+gaps: []
+---
+
+# Summary
+
+- `Service.ExplainFeature` uses an LLM to select project indexes, select declared memory documents, and synthesize a feature explanation.
+- It returns gaps by aggregating only explicit declarations from selected memory documents.
+
+# Dependencies
+
+- Internal: `internal/memory`.
+- Standard library: context, encoding/json, errors, fmt, strings.
+
+# Rules
+
+- The LLM returns JSON selections, optionally enclosed in an empty or `json` Markdown code fence, but the memory repository authorizes every selected path.
+- The final answer is generated only from retrieved memory documents and must not render gaps.

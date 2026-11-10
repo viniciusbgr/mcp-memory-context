@@ -1,0 +1,10 @@
+---
+type: index
+gaps: []
+---
+
+# Project Memory Index
+
+## Local LLM Integration
+
+- memory/internal/ollama/index.memory

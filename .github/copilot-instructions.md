@@ -54,6 +54,8 @@ my-mcp-memory/
 - A test-file memory must summarize the tests and scenarios in that file and describe their coverage of the related code. Do not claim measured coverage unless it has been measured.
 - Keep memory documentation in simple, direct, concise English. Optimize it for LLM agents; omit redundant or irrelevant details.
 - Keep each memory file synchronized with its corresponding code or test file. Do not require a central JSON index or duplicate the same memory in another format.
+- Memory frontmatter may declare `gaps` as a YAML list of explicit, evidence-backed limitations, uncertainties, or TODOs. Use `gaps: []` when none are known; never infer gaps from missing information.
+- The MCP server returns gaps structurally from selected memory files. LLM-generated explanations must not create or render a `Gaps` section.
 
 ## Initial Task
 Start by executing `go_workspace` and `go_vulncheck`. Next, establish the foundational structure by implementing a provider-neutral LLM API client using TDD. Its base URL, endpoint, provider/API protocol, model, and authentication must be configurable; do not assume a specific provider or model.

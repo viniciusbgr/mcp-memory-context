@@ -1,0 +1,14 @@
+---
+type: test
+gaps: []
+---
+
+# Summary
+
+- Simulates an agent calling `tools/call` over the MCP stdio JSON-RPC transport with a question about the Ollama client.
+- Uses the local Ollama server at `http://127.0.0.1:11434` to plan memory retrieval and synthesize the explanation.
+
+# Coverage
+
+- Verifies the complete MCP request path: JSON-RPC decoding, hierarchical memory selection, local LLM generation, and explanation response encoding.
+- Runs only when `OLLAMA_INTEGRATION=1` and `OLLAMA_MODEL` are configured.

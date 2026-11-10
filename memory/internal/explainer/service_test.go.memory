@@ -1,0 +1,13 @@
+---
+type: test
+gaps: []
+---
+
+# Summary
+
+- Verifies planning, index selection, memory selection, evidence-backed gap aggregation, and answer generation for a feature question, including Markdown-fenced JSON selections.
+- Verifies that LLM-selected paths not declared by an index are rejected.
+
+# Coverage
+
+- Covers the hierarchical retrieval path and the server-side authorization boundary.
