@@ -5,6 +5,9 @@
       "args": [
         "mcp"
       ]
+    },
+    "mcp-memory-context": {
+      "command": "./bin/mcp-memory-context"
     }
   }
 }

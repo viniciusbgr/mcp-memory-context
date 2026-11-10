@@ -40,13 +40,75 @@ export OLLAMA_MODEL=qwen2.5-coder:7b
 
 ## Running the server
 
-Start the MCP server from the repository root:
+Build the binary from the repository root:
 
 ```bash
-go run ./cmd/server
+make build
 ```
 
-The server communicates through stdio. Configure your MCP client to launch the same command with the environment variables above.
+Start the MCP server directly:
+
+```bash
+./bin/mcp-memory-context
+```
+
+The server communicates through stdio. Configure your MCP client to launch the binary with the environment variables above.
+
+### Copilot CLI
+
+For a user-level Copilot CLI configuration, run this command from the repository root after setting the environment variables:
+
+```bash
+copilot mcp add mcp-memory-context \
+  --env OLLAMA_BASE_URL="$OLLAMA_BASE_URL" \
+  --env OLLAMA_MODEL="$OLLAMA_MODEL" \
+  -- ./bin/mcp-memory-context
+```
+
+Verify the registration:
+
+```bash
+copilot mcp list
+```
+
+For workspace-level configuration, this repository's `.mcp.json` already registers the same stdio server:
+
+```json
+{
+  "mcpServers": {
+    "mcp-memory-context": {
+      "command": "./bin/mcp-memory-context"
+    }
+  }
+}
+```
+
+Run `make build` before starting Copilot CLI from the repository root. Export `OLLAMA_BASE_URL` and `OLLAMA_MODEL` so the workspace server receives them.
+
+## Local Ollama with Docker
+
+Unit tests do not require Ollama. Use Docker only for local integration tests or to run the MCP server with a local LLM:
+
+```bash
+docker compose up -d
+docker compose logs -f ollama-model
+```
+
+The Compose file starts Ollama, then downloads `qwen2.5-coder:7b` into the persistent `ollama-data` volume. It binds Ollama only to `127.0.0.1:11434`. Set `OLLAMA_MODEL=qwen2.5-coder:7b` before running integration tests.
+
+### Validated host configuration
+
+The local LLM and integration tests have been validated on the following host configuration:
+
+| Resource | Configuration |
+| --- | --- |
+| CPU | AMD Ryzen 7 2700, 16 logical CPUs |
+| Memory | 16 GiB RAM, 4 GiB swap |
+| GPU | NVIDIA GeForce RTX 2060 SUPER, 8 GiB VRAM |
+| NVIDIA driver | 610.88 |
+| Container runtime | NVIDIA Container Runtime |
+
+The Compose configuration requests all NVIDIA GPUs for Ollama. A compatible NVIDIA driver and NVIDIA Container Toolkit are required for GPU acceleration. This is a validated environment, not a minimum hardware requirement.
 
 ## Available tool
 

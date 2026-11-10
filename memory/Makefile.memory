@@ -1,0 +1,17 @@
+---
+type: source
+gaps: []
+---
+
+# Summary
+
+- `make build` compiles the MCP server as `bin/mcp-memory-context`.
+- `make clean` removes the generated binary.
+
+# Dependencies
+
+- Go toolchain.
+
+# Rules
+
+- The generated `bin/` directory is ignored by Git.
