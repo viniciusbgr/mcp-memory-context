@@ -5,13 +5,17 @@ gaps: []
 
 # Summary
 
-- The server entry point constructs the memory repository, configured local LLM client, explanation service, and stdio MCP server.
+- The server entry point either starts the stdio MCP server or runs standalone `sync`, `status`, and `watch` memory-synchronization commands.
 
 # Dependencies
 
-- Internal: `internal/explainer`, `internal/mcp`, `internal/memory`, `internal/ollama`.
+- Internal: `internal/explainer`, `internal/mcp`, `internal/memory`, `internal/ollama`, `internal/synchronizer`.
 
 # Rules
 
 - `MEMORY_ROOT` defaults to the local `memory` directory.
+- `PROJECT_ROOT` defaults to the current directory and bounds source reads for memory synchronization.
 - The LLM client reads its existing runtime configuration from environment variables.
+- `MEMORY_PROVENANCE_FORMAT` selects line-only or repository-relative source references.
+- `status` does not initialize the LLM; commands write structured JSON reports.
+- `watch` debounces discovery changes and stops on interrupt or termination.

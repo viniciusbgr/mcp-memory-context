@@ -30,6 +30,8 @@ Set the following environment variables before starting the server:
 | `OLLAMA_BASE_URL` | Yes | HTTP(S) URL of the Ollama server, for example `http://127.0.0.1:11434`. |
 | `OLLAMA_MODEL` | Yes | Name of an installed Ollama model. |
 | `MEMORY_ROOT` | No | Path to the memory directory. Defaults to `memory`. |
+| `PROJECT_ROOT` | No | Path containing Go source files that `sync_memory` may read. Defaults to the current directory. |
+| `MEMORY_PROVENANCE_FORMAT` | No | `line` (default) or `repository` for `path#Lx-Ly` references in generated memory. |
 
 Example:
 
@@ -53,6 +55,27 @@ Start the MCP server directly:
 ```
 
 The server communicates through stdio. Configure your MCP client to launch the binary with the environment variables above.
+
+## Synchronizing memory
+
+The binary also synchronizes companion memory documents without an MCP tool call. All commands use `PROJECT_ROOT`, `MEMORY_ROOT`, and the configured local LLM. They emit a JSON report containing created, updated, unchanged, missing, stale, invalid, failed, and orphaned paths.
+
+```bash
+# Generate only missing, stale, or invalid Go memory documents.
+./bin/mcp-memory-context sync --workers 2
+
+# Regenerate every discovered Go document and rebuild indexes.
+./bin/mcp-memory-context sync --full --workers 2
+
+# Inspect state without writing; remove orphaned index references with --fix.
+./bin/mcp-memory-context status
+./bin/mcp-memory-context status --fix
+
+# Poll for local changes and synchronize after a short debounce.
+./bin/mcp-memory-context watch --workers 2
+```
+
+Discovery honors `.gitignore` and excludes hidden directories, generated files, `vendor`, and `memory`. Add comma-separated source patterns with `--exclude` when a project needs further exclusions. `sync --full` and `status --fix` rebuild the generated index references, removing orphaned paths and duplicate references. In CI, run `status` to report drift or `sync --full` after the local LLM is available; failures return a non-zero exit status.
 
 ### Copilot CLI
 
@@ -110,7 +133,7 @@ The local LLM and integration tests have been validated on the following host co
 
 The Compose configuration requests all NVIDIA GPUs for Ollama. A compatible NVIDIA driver and NVIDIA Container Toolkit are required for GPU acceleration. This is a validated environment, not a minimum hardware requirement.
 
-## Available tool
+## Available tools
 
 ### `explain_feature`
 
@@ -139,6 +162,27 @@ The result contains:
 ```
 
 The `gaps` field is omitted when no selected memory document declares a gap.
+
+### `sync_memory`
+
+Creates or updates the companion memory file for a Go source or test file:
+
+```json
+{
+  "source_path": "internal/ollama/client.go"
+}
+```
+
+The server reads the source only below `PROJECT_ROOT`, extracts its Go API and import facts, asks the configured local LLM for a constrained JSON summary, validates that summary against the parsed source, and renders the final Markdown itself before writing only below `MEMORY_ROOT`. The corresponding package and project indexes are created or updated as needed. The result contains the generated memory path and whether it was created or updated:
+
+```json
+{
+  "memory_path": "internal/ollama/client.go.memory",
+  "action": "updated"
+}
+```
+
+The LLM receives source text and existing memory as data but never receives direct filesystem access. The server rejects responses with missing or unknown exported symbols, mismatched imports, unverified gaps, code blocks, excessive size, invalid JSON, unsafe paths, or source files outside the configured project root without replacing the existing memory document. Rules and test scenarios must cite verified source-line evidence; final documents use canonical line references for summaries and exported symbols, and include a schema version and source-content hash.
 
 ## Memory format
 
@@ -174,7 +218,7 @@ gaps: []
 Run package tests:
 
 ```bash
-go test ./internal/memory ./internal/explainer ./internal/ollama ./internal/mcp
+go test ./internal/memory ./internal/explainer ./internal/ollama ./internal/mcp ./internal/synchronizer
 ```
 
 Run local Ollama integration tests:

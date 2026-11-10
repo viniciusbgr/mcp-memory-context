@@ -81,6 +81,71 @@ func TestRepositoryRejectsPathsOutsideMemoryRoot(t *testing.T) {
 	}
 }
 
+func TestRepositoryWritesAndIndexesMemory(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeMemoryFile(t, root, "index.memory", "---\ntype: index\ngaps: []\n---\n\n# Project Memory Index\n")
+	repository, err := NewRepository(root)
+	if err != nil {
+		t.Fatalf("NewRepository() error = %v", err)
+	}
+
+	content := "---\ntype: source\ngaps: []\n---\n\n# Summary\n\n- Synchronizes memory.\n"
+	if err := repository.Write(context.Background(), "internal/synchronizer/service.go.memory", content); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	if err := repository.EnsureIndexed(context.Background(), "internal/synchronizer/service.go.memory"); err != nil {
+		t.Fatalf("EnsureIndexed() error = %v", err)
+	}
+	if err := repository.EnsureIndexed(context.Background(), "internal/synchronizer/service.go.memory"); err != nil {
+		t.Fatalf("EnsureIndexed() repeat error = %v", err)
+	}
+
+	document, err := repository.Read(context.Background(), "internal/synchronizer/service.go.memory")
+	if err != nil || document.Content != content {
+		t.Fatalf("Read() = %#v, %v", document, err)
+	}
+	packageIndex, err := repository.Read(context.Background(), "internal/synchronizer/index.memory")
+	if err != nil || strings.Count(packageIndex.Content, "service.go.memory") != 1 {
+		t.Fatalf("package index = %#v, %v", packageIndex, err)
+	}
+	projectIndex, err := repository.ReadProjectIndex(context.Background())
+	if err != nil || strings.Count(projectIndex.Content, "internal/synchronizer/index.memory") != 1 {
+		t.Fatalf("project index = %#v, %v", projectIndex, err)
+	}
+}
+
+func TestValidateDocumentRejectsInvalidFrontmatter(t *testing.T) {
+	t.Parallel()
+
+	if err := ValidateDocument("---\ntype: test\ngaps: []\n---\n\n# Summary\n", "source"); err == nil {
+		t.Fatal("ValidateDocument() error = nil, want type mismatch")
+	}
+}
+
+func TestRepositoryDoesNotCreateDirectoriesThroughExternalSymlink(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(root, "escape")); err != nil {
+		t.Fatalf("Symlink() error = %v", err)
+	}
+	repository, err := NewRepository(root)
+	if err != nil {
+		t.Fatalf("NewRepository() error = %v", err)
+	}
+
+	err = repository.Write(context.Background(), "escape/nested/document.memory", "content")
+	if err == nil || !strings.Contains(err.Error(), "outside the memory root") {
+		t.Fatalf("Write() error = %v, want outside-root rejection", err)
+	}
+	if _, err := os.Stat(filepath.Join(outside, "nested")); !os.IsNotExist(err) {
+		t.Fatalf("external nested directory exists or stat failed: %v", err)
+	}
+}
+
 func writeMemoryFile(t *testing.T, root, path, content string) {
 	t.Helper()
 

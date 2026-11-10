@@ -1,0 +1,20 @@
+---
+type: source
+gaps: []
+---
+
+# Summary
+
+- `extractFacts` parses a Go source file and extracts deterministic package facts, type-resolved external calls, and line-based evidence ranges, including subtests and table loops.
+- It records imports, exported declarations, top-level test functions, and declaration, branch, return, call, and assertion evidence.
+
+# Dependencies
+
+- Standard library: bytes, fmt, go/ast, go/format, go/importer, go/parser, go/token, go/types, sort, strings.
+
+# Rules
+
+- Test functions in `_test.go` files are test scenarios, not exported API symbols.
+- Declaration evidence includes a function's doc comment when present, so generated provenance can support both the documentation and declaration lines.
+- Imports, symbols, and test names are sorted for stable validation and rendering.
+- Type resolution supplements AST facts when imports can be loaded; unresolved type information never blocks source analysis.

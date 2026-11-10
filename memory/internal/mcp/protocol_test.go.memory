@@ -7,7 +7,8 @@ gaps: []
 
 - Verifies MCP tool discovery for `explain_feature`.
 - Verifies dispatching a feature question to the explanation service and producing a tool result.
+- Verifies discovery and dispatching of `sync_memory` when a synchronization service is configured, including its structured result.
 
 # Coverage
 
-- Covers JSON-RPC method routing for the public MCP tool.
+- Covers JSON-RPC method routing for both public MCP tools.

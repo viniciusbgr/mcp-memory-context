@@ -1,0 +1,31 @@
+---
+type: source
+gaps: []
+---
+
+# Summary
+
+- `NewSourceRepository` restricts source reads to a resolved project root.
+- `NewService` creates a memory synchronization service from a source reader, a memory store, and an LLM.
+- `SourceRepository.Read` validates a relative Go path and rejects symlinks outside the project root.
+- `Service.Sync` reads source and existing companion memory, extracts source facts, requests constrained JSON from the LLM, validates it, renders deterministic Markdown, writes it, and registers it in the indexes.
+
+# Dependencies
+
+- Internal: `internal/memory`.
+- Standard library: context, crypto/sha256, encoding/hex, encoding/json, errors, fmt, os, path/filepath, sort, strings.
+
+# Rules
+
+- Only relative `.go` paths are accepted; `_test.go` files produce `type: test`, all other Go files produce `type: source`.
+- Source and existing-memory content are delimited as data in the generation prompt.
+- The LLM returns a structured JSON representation; it cannot control final Markdown or frontmatter.
+- Every exported symbol and test function must be covered exactly once, and dependencies must exactly match parsed imports.
+- Rules and test scenarios must reference AST-derived branch, return, call, or assertion ranges for their declared symbol.
+- The server binds summary and exported-symbol provenance to canonical AST ranges, preventing model line-number errors from corrupting final memory provenance.
+- Generated text cannot contain code fences; generated gaps are rejected because no server-provided evidence is available.
+- The JSON decoder rejects unknown fields, multiple values, oversized payloads and oversized text fields, then normalizes generated text before validation.
+- The final document includes schema version and a source-content hash, and is bounded to 2 KiB through 16 KiB depending on source size.
+- Provenance is configurable as canonical line ranges or repository-relative `path#Lx-Ly` references.
+- One corrective generation is requested when initial output is invalid; invalid output never replaces the existing memory document.
+- The source reader and memory store independently enforce their filesystem roots.

@@ -1,0 +1,12 @@
+---
+type: test
+gaps: []
+---
+
+# Summary
+
+- Verifies extraction of sorted imports, exported symbols, test function names, declaration ranges, test evidence, type-resolved standard-library calls, subtests, and table-test loops from Go source.
+
+# Coverage
+
+- Covers AST fact extraction used to constrain LLM-generated memory.

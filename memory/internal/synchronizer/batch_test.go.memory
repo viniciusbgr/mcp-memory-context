@@ -1,0 +1,12 @@
+---
+type: test
+gaps: []
+---
+
+# Summary
+
+- Verifies incremental discovery, unchanged hash detection, stale status reporting, orphan detection, and index repair.
+
+# Coverage
+
+- Covers default directory exclusions while preserving the `internal/memory` package, source-hash incremental behavior, orphan reporting, and removal of stale index references.

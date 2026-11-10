@@ -5,12 +5,12 @@ gaps: []
 
 # Summary
 
-- `Repository` reads project memory documents and their explicitly declared gaps from one validated root directory.
-- It extracts declared `.memory` references and allows hierarchical reads only when a parent document explicitly declares the child.
+- `Repository` reads, writes, lists, and reconciles project memory documents and their explicitly declared gaps from one validated root directory.
+- It extracts declared `.memory` references, allows hierarchical reads only when a parent document explicitly declares the child, and registers generated documents in package and project indexes.
 
 # Dependencies
 
-- Standard library: context, errors, fmt, os, path/filepath, regexp, strings.
+- Standard library: context, errors, fmt, os, path/filepath, regexp, sort, strings, sync.
 
 # Rules
 
@@ -18,3 +18,7 @@ gaps: []
 - Symlink targets must remain under the resolved memory root.
 - The LLM never receives unrestricted file-system access; the repository enforces index declarations.
 - Missing `gaps` and `gaps: []` both mean no explicitly declared gaps.
+- Writes reject pre-existing symlink ancestors outside the root before creating directories, then use a temporary file and rename under the memory root.
+- Per-document and per-index locks serialize read-modify-write updates so concurrent synchronizers retain all references.
+- Index reconciliation rewrites generated index references atomically from a supplied document set.
+- Generated documents must have closed YAML frontmatter, a matching `type`, valid `gaps`, and a non-empty body before persistence.

@@ -5,15 +5,16 @@ gaps: []
 
 # Summary
 
-- `Server` exposes `explain_feature` through stdio JSON-RPC MCP transport.
-- The tool accepts a natural-language question and returns the synthesized explanation JSON as MCP text content.
+- `Server` exposes `explain_feature` and, when configured, `sync_memory` through stdio JSON-RPC MCP transport.
+- `sync_memory` accepts a relative Go source path and returns the generated companion memory path and whether it was created or updated.
 
 # Dependencies
 
-- Internal: `internal/explainer`.
+- Internal: `internal/explainer`, `internal/synchronizer`.
 - Standard library: bufio, context, encoding/json, fmt, io, strings.
 
 # Rules
 
 - Tool errors are explicit MCP error results.
 - The protocol never exposes raw memory document contents directly.
+- The synchronization tool is listed only when the server receives a configured memory synchronizer.

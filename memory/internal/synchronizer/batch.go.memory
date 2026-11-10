@@ -1,0 +1,20 @@
+---
+type: source
+gaps: []
+---
+
+# Summary
+
+- `Manager` discovers Go files and runs incremental, full, status, or repair synchronization with structured reports.
+
+# Dependencies
+
+- Internal: `internal/memory`.
+- Standard library: context, crypto/sha256, os, path/filepath, sort, sync.
+
+# Rules
+
+- Discovery respects root `.gitignore` patterns and excludes hidden directories, generated files, `vendor`, and `memory`.
+- Valid matching source hashes are unchanged; missing, stale, and invalid documents are queued unless status-only mode is selected.
+- Workers continue independent synchronization after a failure, honor cancellation, and serialize report updates.
+- Full runs and status repair reconcile indexes; non-Go companion documents are preserved.

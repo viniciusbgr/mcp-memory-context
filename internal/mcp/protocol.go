@@ -10,14 +10,20 @@ import (
 	"strings"
 
 	"github.com/viniciusbgr/mcp-memory-context/internal/explainer"
+	"github.com/viniciusbgr/mcp-memory-context/internal/synchronizer"
 )
 
 type FeatureExplainer interface {
 	ExplainFeature(ctx context.Context, input explainer.ExplainFeatureInput) (explainer.ExplainFeatureOutput, error)
 }
 
+type MemorySynchronizer interface {
+	Sync(ctx context.Context, input synchronizer.SyncInput) (synchronizer.SyncOutput, error)
+}
+
 type Server struct {
-	explainer FeatureExplainer
+	explainer    FeatureExplainer
+	synchronizer MemorySynchronizer
 }
 
 type Request struct {
@@ -59,6 +65,10 @@ func NewServer(featureExplainer FeatureExplainer) *Server {
 	return &Server{explainer: featureExplainer}
 }
 
+func NewServerWithSynchronizer(featureExplainer FeatureExplainer, memorySynchronizer MemorySynchronizer) *Server {
+	return &Server{explainer: featureExplainer, synchronizer: memorySynchronizer}
+}
+
 func (s *Server) Serve(ctx context.Context, input io.Reader, output io.Writer) error {
 	scanner := bufio.NewScanner(input)
 	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
@@ -95,7 +105,11 @@ func (s *Server) Handle(ctx context.Context, request Request) Response {
 	case "notifications/initialized":
 		return successResponse(request.ID, map[string]any{})
 	case "tools/list":
-		return successResponse(request.ID, map[string]any{"tools": []Tool{explainFeatureTool()}})
+		tools := []Tool{explainFeatureTool()}
+		if s.synchronizer != nil {
+			tools = append(tools, syncMemoryTool())
+		}
+		return successResponse(request.ID, map[string]any{"tools": tools})
 	case "tools/call":
 		return s.callTool(ctx, request)
 	default:
@@ -104,9 +118,6 @@ func (s *Server) Handle(ctx context.Context, request Request) Response {
 }
 
 func (s *Server) callTool(ctx context.Context, request Request) Response {
-	if s.explainer == nil {
-		return errorResponse(request.ID, -32603, "feature explainer is not configured")
-	}
 	var parameters struct {
 		Name      string          `json:"name"`
 		Arguments json.RawMessage `json:"arguments"`
@@ -114,28 +125,66 @@ func (s *Server) callTool(ctx context.Context, request Request) Response {
 	if err := json.Unmarshal(request.Params, &parameters); err != nil {
 		return errorResponse(request.ID, -32602, "invalid tool call parameters")
 	}
-	if parameters.Name != "explain_feature" {
+	switch parameters.Name {
+	case "explain_feature":
+		return s.callExplainFeature(ctx, request.ID, parameters.Arguments)
+	case "sync_memory":
+		return s.callSyncMemory(ctx, request.ID, parameters.Arguments)
+	default:
 		return errorResponse(request.ID, -32602, "unknown tool")
 	}
+}
+
+func (s *Server) callExplainFeature(ctx context.Context, id, arguments json.RawMessage) Response {
+	if s.explainer == nil {
+		return errorResponse(id, -32603, "feature explainer is not configured")
+	}
 	var input explainer.ExplainFeatureInput
-	if err := json.Unmarshal(parameters.Arguments, &input); err != nil {
-		return errorResponse(request.ID, -32602, "invalid explain_feature arguments")
+	if err := json.Unmarshal(arguments, &input); err != nil {
+		return errorResponse(id, -32602, "invalid explain_feature arguments")
 	}
 	if strings.TrimSpace(input.Question) == "" {
-		return errorResponse(request.ID, -32602, "question is required")
+		return errorResponse(id, -32602, "question is required")
 	}
 	output, err := s.explainer.ExplainFeature(ctx, input)
 	if err != nil {
-		return successResponse(request.ID, CallToolResult{
+		return successResponse(id, CallToolResult{
 			Content: []Content{{Type: "text", Text: "Unable to explain the feature: " + err.Error()}},
 			IsError: true,
 		})
 	}
 	text, err := json.Marshal(output)
 	if err != nil {
-		return errorResponse(request.ID, -32603, "encode explanation")
+		return errorResponse(id, -32603, "encode explanation")
 	}
-	return successResponse(request.ID, CallToolResult{
+	return successResponse(id, CallToolResult{
+		Content: []Content{{Type: "text", Text: string(text)}},
+	})
+}
+
+func (s *Server) callSyncMemory(ctx context.Context, id, arguments json.RawMessage) Response {
+	if s.synchronizer == nil {
+		return errorResponse(id, -32603, "memory synchronizer is not configured")
+	}
+	var input synchronizer.SyncInput
+	if err := json.Unmarshal(arguments, &input); err != nil {
+		return errorResponse(id, -32602, "invalid sync_memory arguments")
+	}
+	if strings.TrimSpace(input.SourcePath) == "" {
+		return errorResponse(id, -32602, "source_path is required")
+	}
+	output, err := s.synchronizer.Sync(ctx, input)
+	if err != nil {
+		return successResponse(id, CallToolResult{
+			Content: []Content{{Type: "text", Text: "Unable to synchronize memory: " + err.Error()}},
+			IsError: true,
+		})
+	}
+	text, err := json.Marshal(output)
+	if err != nil {
+		return errorResponse(id, -32603, "encode memory synchronization")
+	}
+	return successResponse(id, CallToolResult{
 		Content: []Content{{Type: "text", Text: string(text)}},
 	})
 }
@@ -156,6 +205,23 @@ func explainFeatureTool() Tool {
 					"type":        "integer",
 					"description": "Optional maximum context size for a future configured retriever.",
 					"minimum":     1,
+				},
+			},
+		},
+	}
+}
+
+func syncMemoryTool() Tool {
+	return Tool{
+		Name:        "sync_memory",
+		Description: "Creates or updates the companion memory document for a Go source or test file.",
+		InputSchema: map[string]any{
+			"type":     "object",
+			"required": []string{"source_path"},
+			"properties": map[string]any{
+				"source_path": map[string]string{
+					"type":        "string",
+					"description": "Relative path to a Go source or test file under the configured project root.",
 				},
 			},
 		},

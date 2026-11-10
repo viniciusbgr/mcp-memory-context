@@ -7,7 +7,8 @@ gaps: []
 
 - Verifies that the repository reads a project index, follows only references declared by that index, and parses declared gaps.
 - Verifies rejection of undeclared files and path traversal attempts.
+- Verifies writing a source memory document, creating and idempotently registering package and project indexes, rejecting invalid generated frontmatter, and preventing directory creation through external symlinks.
 
 # Coverage
 
-- Covers hierarchical memory access and root-boundary validation.
+- Covers hierarchical memory access, root-boundary validation, generated document validation, and index registration.

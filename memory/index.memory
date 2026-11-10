@@ -8,3 +8,8 @@ gaps: []
 ## Local LLM Integration
 
 - memory/internal/ollama/index.memory
+- memory/internal/mcp/index.memory
+- memory/internal/memory/index.memory
+- memory/internal/explainer/index.memory
+- memory/internal/synchronizer/index.memory
+- memory/cmd/server/index.memory
