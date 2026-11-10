@@ -4,7 +4,7 @@
 Assist in building a high-performance Model Context Protocol (MCP) server written in Go. This MCP server acts as an intelligent local bridge between the primary editor/agent and a configurable LLM provider. It reads source code changes, generates structured memory summaries, and maintains synchronized companion memory files with minimal token overhead.
 
 ## Core Stack & Tooling Guidelines
-- **Go Version:** Target Go 1.27 as configured in `go.mod`. Prefer current standard library features (`net/http.ServeMux`, `encoding/json/v2`, `context`).
+- **Go Version:** Target Go 1.27.3 as configured in `go.mod`. Prefer current standard library features (`net/http.ServeMux`, `encoding/json/v2`, `context`).
 - **Standard Library Priority:** Rely on Go standard library capabilities by default. Request explicit user authorization prior to introducing any third-party packages or modifying `go.mod`.
 - **Gopls MCP Integration:** Apply the `gopls-workflow` skill for all Go programming tasks. Always execute workspace discovery, symbol searches (`go_search`), diagnostics checks (`go_diagnostics`), and package-level tests via `gopls`.
 - **Language:** Write all source code, comments, identifiers, and project documentation in English.
@@ -39,13 +39,17 @@ my-mcp-memory/
 ### Test-Driven Development (TDD)
 - Author or update test suites to define expected unit behavior before implementing production changes.
 - Ensure test coverage includes valid execution paths, edge scenarios, and error states.
+- Keep integration tests that depend on external services in separate `*_integration_test.go` files, apart from unit tests; give each test file its own companion `.memory` file.
 - Run package-specific tests using `go test [packagePath...]` upon resolving diagnostics.
 
 ### Git Version Control
 - Perform local commits or git pushes exclusively when the user provides explicit directives.
 
+### Agent Instructions and Skills
+- Create, modify, or delete agent instruction or skill files only after receiving the user's explicit prior authorization for that change.
+
 ### Memory & Workspace Synchronization
-- Store memory as Markdown files with YAML frontmatter. Each source and test file must have its own companion memory file, named by appending `.memory` to the complete filename and placed beside it, preserving the source directory structure (for example, `internal/client/ollama.go` → `internal/client/ollama.go.memory` and `internal/client/ollama_test.go` → `internal/client/ollama_test.go.memory`). Keep implementation and tests in separate files.
+- Store memory as Markdown files with YAML frontmatter. Each source and test file must have its own companion memory file under the project's `memory/` directory, named by appending `.memory` to the complete filename and preserving the source directory structure (for example, `internal/client/ollama.go` → `memory/internal/client/ollama.go.memory` and `internal/client/ollama_test.go` → `memory/internal/client/ollama_test.go.memory`). Keep implementation and tests in separate files.
 - A source-file memory must summarize each exported function, list internal and external dependencies, and record critical implemented logic rules.
 - A test-file memory must summarize the tests and scenarios in that file and describe their coverage of the related code. Do not claim measured coverage unless it has been measured.
 - Keep memory documentation in simple, direct, concise English. Optimize it for LLM agents; omit redundant or irrelevant details.

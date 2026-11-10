@@ -1,0 +1,9 @@
+---
+type: test
+---
+
+# Coverage
+
+- Verifies the configured `/api/generate` POST payload, environment-backed defaults, a custom model, non-streaming mode, and decoded response text.
+- Covers HTTP failures, malformed/empty responses, context cancellation, context deadlines, and `http.Client` timeouts using `httptest`.
+- Verifies missing environment-backed URL and model settings are rejected.

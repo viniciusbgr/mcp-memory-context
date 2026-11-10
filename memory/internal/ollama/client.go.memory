@@ -1,0 +1,20 @@
+---
+type: source
+---
+
+# Summary
+
+- `NewClient` configures the official Ollama API client from the server URL, model, and optional HTTP client.
+- `(*Client).Generate` sends a contextual, non-streaming generation request and returns response text.
+
+# Dependencies
+
+- External: `github.com/ollama/ollama/api`
+- Standard library: context, errors, fmt, net/http, net/url, strings
+
+# Rules
+
+- `DefaultBaseURL` and `DefaultModel` are read from `OLLAMA_BASE_URL` and `OLLAMA_MODEL` at process startup; there are no hard-coded fallback values.
+- `NewClient` requires both a configured value and rejects an empty environment-backed setting with the corresponding variable name.
+- Base URLs must use HTTP or HTTPS and must not include a query or fragment.
+- Generation always sets `stream` to false; API errors are wrapped, and absent or whitespace-only responses are rejected.

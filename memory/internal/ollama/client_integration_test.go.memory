@@ -1,0 +1,8 @@
+---
+type: test
+---
+
+# Coverage
+
+- Exercises `Client.Generate` against a live Ollama server using the required `OLLAMA_BASE_URL` and `OLLAMA_MODEL` settings.
+- Runs only when `OLLAMA_INTEGRATION=1`; otherwise skips without requiring an Ollama service.
