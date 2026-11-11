@@ -28,6 +28,10 @@ type LLM interface {
 	Generate(ctx context.Context, prompt string) (string, error)
 }
 
+type JSONLLM interface {
+	GenerateJSON(ctx context.Context, prompt string) (string, error)
+}
+
 type SourceReader interface {
 	Read(ctx context.Context, path string) (string, error)
 }
@@ -183,7 +187,7 @@ func (s *Service) Sync(ctx context.Context, input SyncInput) (SyncOutput, error)
 	if strings.HasSuffix(sourcePath, "_test.go") {
 		documentType = "test"
 	}
-	generated, err := s.llm.Generate(ctx, memoryPrompt(sourcePath, source, facts, existingContent))
+	generated, err := s.generateJSON(ctx, memoryPrompt(sourcePath, source, facts, existingContent))
 	if err != nil {
 		return SyncOutput{}, fmt.Errorf("generate memory document: %w", err)
 	}
@@ -191,9 +195,10 @@ func (s *Service) Sync(ctx context.Context, input SyncInput) (SyncOutput, error)
 	if err != nil {
 		return SyncOutput{}, fmt.Errorf("parse generated memory document: %w", err)
 	}
+	completeRequiredEvidence(&document, facts)
 	bindDeterministicEvidence(&document, facts)
 	if err := validateGeneratedDocument(document, facts, documentType, sourcePath, source, s.options); err != nil {
-		generated, err = s.llm.Generate(ctx, repairPrompt(sourcePath, source, facts, generated, err))
+		generated, err = s.generateJSON(ctx, repairPrompt(sourcePath, source, facts, generated, err))
 		if err != nil {
 			return SyncOutput{}, fmt.Errorf("repair generated memory document: %w", err)
 		}
@@ -201,6 +206,7 @@ func (s *Service) Sync(ctx context.Context, input SyncInput) (SyncOutput, error)
 		if err != nil {
 			return SyncOutput{}, fmt.Errorf("parse repaired memory document: %w", err)
 		}
+		completeRequiredEvidence(&document, facts)
 		bindDeterministicEvidence(&document, facts)
 		if err := validateGeneratedDocument(document, facts, documentType, sourcePath, source, s.options); err != nil {
 			return SyncOutput{}, fmt.Errorf("validate generated memory document: %w", err)
@@ -217,6 +223,13 @@ func (s *Service) Sync(ctx context.Context, input SyncInput) (SyncOutput, error)
 		return SyncOutput{}, fmt.Errorf("register memory document: %w", err)
 	}
 	return SyncOutput{MemoryPath: memoryPath, Action: action}, nil
+}
+
+func (s *Service) generateJSON(ctx context.Context, prompt string) (string, error) {
+	if llm, ok := s.llm.(JSONLLM); ok {
+		return llm.GenerateJSON(ctx, prompt)
+	}
+	return s.llm.Generate(ctx, prompt)
 }
 
 func normalizeSourcePath(path string) (string, error) {
@@ -285,28 +298,97 @@ func parseGeneratedDocument(response string) (generatedDocument, error) {
 	if len(response) > maximumGeneratedJSONSize {
 		return generatedDocument{}, fmt.Errorf("generated JSON exceeds %d byte limit", maximumGeneratedJSONSize)
 	}
-	if strings.HasPrefix(response, "```") {
-		lines := strings.Split(response, "\n")
-		if len(lines) < 3 || strings.TrimSpace(lines[len(lines)-1]) != "```" {
-			return generatedDocument{}, errors.New("generated JSON has an invalid code fence")
-		}
-		language := strings.TrimSpace(strings.TrimPrefix(lines[0], "```"))
-		if language != "" && language != "json" {
-			return generatedDocument{}, fmt.Errorf("generated JSON uses unsupported code fence language %q", language)
-		}
-		response = strings.Join(lines[1:len(lines)-1], "\n")
+	response, err := finalJSONObject(response)
+	if err != nil {
+		return generatedDocument{}, err
 	}
-	var document generatedDocument
+	var fields map[string]json.RawMessage
 	decoder := json.NewDecoder(strings.NewReader(response))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&document); err != nil {
+	if err := decoder.Decode(&fields); err != nil {
 		return generatedDocument{}, fmt.Errorf("decode generated JSON: %w", err)
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		return generatedDocument{}, errors.New("generated JSON contains multiple values")
 	}
+	filtered := make(map[string]json.RawMessage, len(fields))
+	for name, value := range fields {
+		if _, ok := generatedDocumentFields[name]; ok {
+			filtered[name] = value
+		}
+	}
+	filtered["gaps"] = json.RawMessage("[]")
+	responseBytes, err := json.Marshal(filtered)
+	if err != nil {
+		return generatedDocument{}, fmt.Errorf("encode generated JSON fields: %w", err)
+	}
+	var document generatedDocument
+	decoder = json.NewDecoder(strings.NewReader(string(responseBytes)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&document); err != nil {
+		return generatedDocument{}, fmt.Errorf("decode generated JSON: %w", err)
+	}
 	normalizeDocument(&document)
 	return document, nil
+}
+
+var generatedDocumentFields = map[string]struct{}{
+	"summary":          {},
+	"summary_evidence": {},
+	"exports":          {},
+	"dependencies":     {},
+	"rules":            {},
+	"test_scenarios":   {},
+	"gaps":             {},
+}
+
+func finalJSONObject(response string) (string, error) {
+	var final string
+	for start := 0; start < len(response); start++ {
+		if response[start] != '{' {
+			continue
+		}
+		end, ok := objectEnd(response, start)
+		if !ok {
+			continue
+		}
+		final = response[start:end]
+		start = end - 1
+	}
+	if final == "" {
+		return "", errors.New("generated response does not contain a complete JSON object")
+	}
+	return final, nil
+}
+
+func objectEnd(value string, start int) (int, bool) {
+	depth := 0
+	inString := false
+	escaped := false
+	for index := start; index < len(value); index++ {
+		character := value[index]
+		if inString {
+			if escaped {
+				escaped = false
+			} else if character == '\\' {
+				escaped = true
+			} else if character == '"' {
+				inString = false
+			}
+			continue
+		}
+		switch character {
+		case '"':
+			inString = true
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return index + 1, true
+			}
+		}
+	}
+	return 0, false
 }
 
 func validateGeneratedDocument(document generatedDocument, facts sourceFacts, documentType, sourcePath, source string, options Options) error {
@@ -358,11 +440,38 @@ func bindDeterministicEvidence(document *generatedDocument, facts sourceFacts) {
 	}
 }
 
+func completeRequiredEvidence(document *generatedDocument, facts sourceFacts) {
+	if strings.TrimSpace(document.Summary) == "" {
+		document.Summary = fmt.Sprintf("Documents the %s package.", facts.Package)
+	}
+	document.Dependencies = append([]string(nil), facts.Imports...)
+	document.Gaps = nil
+	document.Exports = appendMissingEvidence(document.Exports, facts.ExportedSymbols, "Documents")
+	document.TestScenarios = appendMissingEvidence(document.TestScenarios, facts.TestEvidence, "Covers")
+}
+
+func appendMissingEvidence(items []evidenceItem, symbols []sourceSymbol, verb string) []evidenceItem {
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		seen[item.Symbol] = struct{}{}
+	}
+	for _, symbol := range symbols {
+		if _, ok := seen[symbol.Name]; ok {
+			continue
+		}
+		items = append(items, evidenceItem{
+			Symbol:    symbol.Name,
+			Summary:   fmt.Sprintf("%s %s %s.", verb, symbol.Kind, symbol.Name),
+			StartLine: symbol.Declaration.StartLine,
+			EndLine:   symbol.Declaration.EndLine,
+			Kind:      symbol.Declaration.Kind,
+		})
+	}
+	return items
+}
+
 func validateEvidence(label string, values []evidenceItem, symbols []sourceSymbol, declarationOnly bool) error {
 	expected := symbolSet(symbols)
-	if len(values) != len(expected) {
-		return fmt.Errorf("%s entries do not cover every required symbol", label)
-	}
 	seen := make(map[string]struct{}, len(values))
 	for _, value := range values {
 		if err := validateEvidenceItem(label, value, symbols, declarationOnly); err != nil {
@@ -372,6 +481,9 @@ func validateEvidence(label string, values []evidenceItem, symbols []sourceSymbo
 			return fmt.Errorf("duplicate %s symbol %q", label, value.Symbol)
 		}
 		seen[value.Symbol] = struct{}{}
+	}
+	if len(values) != len(expected) {
+		return fmt.Errorf("%s entries do not cover every required symbol", label)
 	}
 	return nil
 }

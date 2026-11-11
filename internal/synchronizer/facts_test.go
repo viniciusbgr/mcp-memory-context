@@ -64,6 +64,25 @@ func Normalize(value string) string {
 	}
 }
 
+func TestExtractFactsIncludesDeclarationEvidenceForTypesAndValues(t *testing.T) {
+	t.Parallel()
+
+	facts, err := extractFacts("normal.go", `package demo
+
+type Client struct{}
+const Limit = 1
+var Name string
+`)
+	if err != nil {
+		t.Fatalf("extractFacts() error = %v", err)
+	}
+	for _, symbol := range facts.ExportedSymbols {
+		if len(symbol.Evidence) != 1 || symbol.Evidence[0] != symbol.Declaration {
+			t.Fatalf("extractFacts() evidence for %q = %#v, want declaration", symbol.Name, symbol.Evidence)
+		}
+	}
+}
+
 func TestExtractFactsFindsSubtestsAndTableTests(t *testing.T) {
 	t.Parallel()
 

@@ -2,6 +2,7 @@ package ollama
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -81,12 +82,23 @@ func NewClient(config Config) (*Client, error) {
 }
 
 func (c *Client) Generate(ctx context.Context, prompt string) (string, error) {
+	return c.generate(ctx, prompt, nil)
+}
+
+func (c *Client) GenerateJSON(ctx context.Context, prompt string) (string, error) {
+	return c.generate(ctx, prompt, json.RawMessage(`"json"`))
+}
+
+func (c *Client) generate(ctx context.Context, prompt string, format json.RawMessage) (string, error) {
 	stream := false
+	think := api.ThinkValue{Value: false}
 	request := &api.GenerateRequest{
 		Model:  c.model,
 		Prompt: prompt,
 		System: c.systemPrompt,
 		Stream: &stream,
+		Think:  &think,
+		Format: format,
 	}
 
 	var response *api.GenerateResponse

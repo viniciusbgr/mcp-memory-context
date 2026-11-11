@@ -33,6 +33,57 @@ func TestServiceCreatesAndIndexesMemory(t *testing.T) {
 	}
 }
 
+func TestServiceCompletesMissingExportedSymbols(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeMemoryStore{readErr: fmt.Errorf("read: %w", os.ErrNotExist)}
+	service := NewService(
+		fakeSourceReader{content: "package billing\n\nfunc Issue() {}\n\nfunc Refund() {}\n"},
+		store,
+		fakeLLM{response: `{"summary":"Handles invoices.","summary_evidence":{"symbol":"file","start_line":1,"end_line":1,"kind":"file"},"exports":[{"symbol":"Issue","summary":"Issues invoices.","start_line":3,"end_line":3,"kind":"declaration"}],"dependencies":[],"rules":[],"test_scenarios":[],"gaps":[]}`},
+	)
+
+	if _, err := service.Sync(context.Background(), SyncInput{SourcePath: "internal/billing/invoice.go"}); err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+	if !strings.Contains(store.writtenContent, "`Refund`") {
+		t.Fatalf("written memory lacks completed export: %q", store.writtenContent)
+	}
+}
+
+func TestServiceCompletesMissingDeterministicFields(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeMemoryStore{readErr: fmt.Errorf("read: %w", os.ErrNotExist)}
+	service := NewService(
+		fakeSourceReader{content: "package billing\n\nimport \"fmt\"\n"},
+		store,
+		fakeLLM{response: `{"summary":"","summary_evidence":{"symbol":"file","start_line":1,"end_line":1,"kind":"file"},"exports":[],"dependencies":[],"rules":[],"test_scenarios":[],"gaps":[]}`},
+	)
+
+	if _, err := service.Sync(context.Background(), SyncInput{SourcePath: "internal/billing/invoice.go"}); err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+	if !strings.Contains(store.writtenContent, "Documents the billing package.") || !strings.Contains(store.writtenContent, "`fmt`") {
+		t.Fatalf("written memory lacks deterministic fields: %q", store.writtenContent)
+	}
+}
+
+func TestServiceUsesStructuredGenerator(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeMemoryStore{readErr: fmt.Errorf("read: %w", os.ErrNotExist)}
+	service := NewService(
+		fakeSourceReader{content: "package billing\n"},
+		store,
+		structuredFakeLLM{response: generatedNoExportDocument},
+	)
+
+	if _, err := service.Sync(context.Background(), SyncInput{SourcePath: "internal/billing/issue.go"}); err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+}
+
 func TestServiceDoesNotWriteInvalidGeneratedMemory(t *testing.T) {
 	t.Parallel()
 
@@ -140,12 +191,66 @@ func TestServiceRejectsCodeBlocksAndUndeclaredDependencies(t *testing.T) {
 	}
 }
 
-func TestParseGeneratedDocumentRejectsUnknownFields(t *testing.T) {
+func TestParseGeneratedDocumentIgnoresUnknownTopLevelFields(t *testing.T) {
 	t.Parallel()
 
-	_, err := parseGeneratedDocument(`{"summary":"Summary.","summary_evidence":{"symbol":"file","start_line":1,"end_line":1,"kind":"file"},"exports":[],"dependencies":[],"rules":[],"test_scenarios":[],"gaps":[],"unexpected":true}`)
+	document, err := parseGeneratedDocument(`{"summary":"Summary.","summary_evidence":{"symbol":"file","start_line":1,"end_line":1,"kind":"file"},"exports":[],"dependencies":[],"rules":[],"test_scenarios":[],"gaps":[],"type":"source"}`)
+	if err != nil {
+		t.Fatalf("parseGeneratedDocument() error = %v", err)
+	}
+	if document.Summary != "Summary." {
+		t.Fatalf("parseGeneratedDocument() summary = %q", document.Summary)
+	}
+}
+
+func TestParseGeneratedDocumentDiscardsGeneratedGaps(t *testing.T) {
+	t.Parallel()
+
+	document, err := parseGeneratedDocument(`{"summary":"Summary.","summary_evidence":{"symbol":"file","start_line":1,"end_line":1,"kind":"file"},"exports":[],"dependencies":[],"rules":[],"test_scenarios":[],"gaps":[{"type":"uncertain"}]}`)
+	if err != nil {
+		t.Fatalf("parseGeneratedDocument() error = %v", err)
+	}
+	if len(document.Gaps) != 0 {
+		t.Fatalf("parseGeneratedDocument() gaps = %#v, want none", document.Gaps)
+	}
+}
+
+func TestParseGeneratedDocumentRejectsUnknownNestedFields(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseGeneratedDocument(`{"summary":"Summary.","summary_evidence":{"symbol":"file","start_line":1,"end_line":1,"kind":"file","unexpected":true},"exports":[],"dependencies":[],"rules":[],"test_scenarios":[],"gaps":[]}`)
 	if err == nil || !strings.Contains(err.Error(), "unknown field") {
 		t.Fatalf("parseGeneratedDocument() error = %v, want unknown-field error", err)
+	}
+}
+
+func TestParseGeneratedDocumentAcceptsJSONInMislabeledFence(t *testing.T) {
+	t.Parallel()
+
+	document, err := parseGeneratedDocument("```go\n" +
+		`{"summary":"Summary.","summary_evidence":{"symbol":"file","start_line":1,"end_line":1,"kind":"file"},"exports":[],"dependencies":[],"rules":[],"test_scenarios":[],"gaps":[]}` +
+		"\n```")
+	if err != nil {
+		t.Fatalf("parseGeneratedDocument() error = %v", err)
+	}
+	if document.Summary != "Summary." {
+		t.Fatalf("parseGeneratedDocument() summary = %q", document.Summary)
+	}
+}
+
+func TestParseGeneratedDocumentUsesFinalJSONAfterThinking(t *testing.T) {
+	t.Parallel()
+
+	document, err := parseGeneratedDocument("<think>\n" +
+		`I considered {"draft":true} before producing the response.` +
+		"\n</think>\n```go\n" +
+		`{"summary":"Final summary.","summary_evidence":{"symbol":"file","start_line":1,"end_line":1,"kind":"file"},"exports":[],"dependencies":[],"rules":[],"test_scenarios":[],"gaps":[]}` +
+		"\n```")
+	if err != nil {
+		t.Fatalf("parseGeneratedDocument() error = %v", err)
+	}
+	if document.Summary != "Final summary." {
+		t.Fatalf("parseGeneratedDocument() summary = %q", document.Summary)
 	}
 }
 
@@ -246,9 +351,23 @@ func (l fakeLLM) Generate(context.Context, string) (string, error) {
 	return l.response, nil
 }
 
+type structuredFakeLLM struct {
+	response string
+}
+
+func (structuredFakeLLM) Generate(context.Context, string) (string, error) {
+	return "", errors.New("Generate() must not be used when structured generation is available")
+}
+
+func (l structuredFakeLLM) GenerateJSON(context.Context, string) (string, error) {
+	return l.response, nil
+}
+
 type sequenceLLM struct {
 	responses []string
 }
+
+const generatedNoExportDocument = `{"summary":"Defines the billing package.","summary_evidence":{"symbol":"file","start_line":1,"end_line":1,"kind":"file"},"exports":[],"dependencies":[],"rules":[],"test_scenarios":[],"gaps":[]}`
 
 func (l *sequenceLLM) Generate(context.Context, string) (string, error) {
 	if len(l.responses) == 0 {

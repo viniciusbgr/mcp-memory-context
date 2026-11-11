@@ -34,6 +34,7 @@ func TestClientGenerateUsesEnvironmentBackedDefaults(t *testing.T) {
 			Prompt string `json:"prompt"`
 			System string `json:"system"`
 			Stream *bool  `json:"stream"`
+			Think  *bool  `json:"think"`
 		}
 		if err := decodeRequest(r, &request); err != nil {
 			t.Errorf("decode request: %v", err)
@@ -50,6 +51,9 @@ func TestClientGenerateUsesEnvironmentBackedDefaults(t *testing.T) {
 		}
 		if request.Stream == nil || *request.Stream {
 			t.Errorf("request stream = %v, want false", request.Stream)
+		}
+		if request.Think == nil || *request.Think {
+			t.Errorf("request think = %v, want false", request.Think)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -123,6 +127,31 @@ func TestClientGenerateUsesConfiguredModel(t *testing.T) {
 
 	if _, err := client.Generate(context.Background(), "prompt"); err != nil {
 		t.Fatalf("Generate: %v", err)
+	}
+}
+
+func TestClientGenerateJSONRequestsStructuredOutput(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Format json.RawMessage `json:"format"`
+		}
+		if err := decodeRequest(r, &request); err != nil {
+			t.Errorf("decode request: %v", err)
+			return
+		}
+		if got, want := string(request.Format), `"json"`; got != want {
+			t.Errorf("request format = %s, want %s", got, want)
+		}
+		_, _ = fmt.Fprint(w, `{"response":"{}","done":true}`)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(Config{BaseURL: server.URL, Model: testModel, HTTPClient: server.Client()})
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	if response, err := client.GenerateJSON(context.Background(), "prompt"); err != nil || response != "{}" {
+		t.Fatalf("GenerateJSON() = %q, %v", response, err)
 	}
 }
 

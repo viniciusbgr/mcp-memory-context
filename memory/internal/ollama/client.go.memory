@@ -7,6 +7,7 @@ gaps: []
 
 - `NewClient` configures the official Ollama API client from the server URL, model, optional system prompt, and optional HTTP client.
 - `(*Client).Generate` sends a contextual, non-streaming generation request and returns response text.
+- `(*Client).GenerateJSON` requests a JSON-formatted response for callers that require structured output.
 
 # Dependencies
 
@@ -19,4 +20,5 @@ gaps: []
 - `DefaultSystemPrompt` requires concise, actionable, evidence-backed project context, fixed section titles, and no placeholder gaps; it is used when `Config.SystemPrompt` is empty.
 - `NewClient` requires both a configured value and rejects an empty environment-backed setting with the corresponding variable name.
 - Base URLs must use HTTP or HTTPS and must not include a query or fragment.
-- Generation always sets `stream` to false and sends the configured system prompt; API errors are wrapped, and absent or whitespace-only responses are rejected.
+- Generation always sets `stream` and `think` to false, sends the configured system prompt, and rejects absent or whitespace-only final responses.
+- Structured generation requests Ollama's native JSON response format without changing ordinary text generation.

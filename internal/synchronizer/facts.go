@@ -94,11 +94,13 @@ func extractFacts(sourcePath, source string) (sourceFacts, error) {
 				switch spec := spec.(type) {
 				case *ast.TypeSpec:
 					if ast.IsExported(spec.Name.Name) {
+						declaration := nodeReference(fileSet, spec.Name.Name, "declaration", spec)
 						facts.ExportedSymbols = append(facts.ExportedSymbols, sourceSymbol{
 							Name:        spec.Name.Name,
 							Kind:        "type",
 							Signature:   formatNode(fileSet, spec.Type),
-							Declaration: nodeReference(fileSet, spec.Name.Name, "declaration", spec),
+							Declaration: declaration,
+							Evidence:    []sourceReference{declaration},
 						})
 					}
 				case *ast.ValueSpec:
@@ -108,11 +110,13 @@ func extractFacts(sourcePath, source string) (sourceFacts, error) {
 							if declaration.Tok == token.CONST {
 								kind = "constant"
 							}
+							reference := nodeReference(fileSet, name.Name, "declaration", spec)
 							facts.ExportedSymbols = append(facts.ExportedSymbols, sourceSymbol{
 								Name:        name.Name,
 								Kind:        kind,
 								Signature:   formatNode(fileSet, spec.Type),
-								Declaration: nodeReference(fileSet, name.Name, "declaration", spec),
+								Declaration: reference,
+								Evidence:    []sourceReference{reference},
 							})
 						}
 					}

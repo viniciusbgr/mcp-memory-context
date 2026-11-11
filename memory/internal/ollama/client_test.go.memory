@@ -5,6 +5,7 @@ gaps: []
 
 # Coverage
 
-- Verifies the configured `/api/generate` POST payload, environment-backed defaults and default system prompt, custom model and system prompt, non-streaming mode, and decoded response text.
+- Verifies the configured `/api/generate` POST payload, environment-backed defaults and default system prompt, custom model and system prompt, disabled reasoning, non-streaming mode, and decoded response text.
 - Covers HTTP failures, malformed/empty responses, context cancellation, context deadlines, and `http.Client` timeouts using `httptest`.
 - Verifies missing environment-backed URL and model settings are rejected.
+- Verifies structured generation requests Ollama's JSON output format.

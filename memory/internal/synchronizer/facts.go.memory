@@ -16,5 +16,6 @@ gaps: []
 
 - Test functions in `_test.go` files are test scenarios, not exported API symbols.
 - Declaration evidence includes a function's doc comment when present, so generated provenance can support both the documentation and declaration lines.
+- Types, constants, and variables use their declaration as deterministic evidence.
 - Imports, symbols, and test names are sorted for stable validation and rendering.
 - Type resolution supplements AST facts when imports can be loaded; unresolved type information never blocks source analysis.

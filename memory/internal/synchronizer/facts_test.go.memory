@@ -5,7 +5,7 @@ gaps: []
 
 # Summary
 
-- Verifies extraction of sorted imports, exported symbols, test function names, declaration ranges, test evidence, type-resolved standard-library calls, subtests, and table-test loops from Go source.
+- Verifies extraction of sorted imports, exported symbols, declaration evidence for types and values, test function names, declaration ranges, test evidence, type-resolved standard-library calls, subtests, and table-test loops from Go source.
 
 # Coverage
 

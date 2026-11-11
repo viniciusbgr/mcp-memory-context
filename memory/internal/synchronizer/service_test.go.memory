@@ -11,8 +11,14 @@ gaps: []
 - Verifies JSON responses are rendered by the server with a source hash and without code fences.
 - Verifies a single corrective generation when the initial structured response is invalid.
 - Verifies rejection of code blocks and undeclared dependencies.
-- Verifies rejection of unknown JSON fields.
+- Verifies ignored top-level model metadata and rejection of unknown nested JSON fields.
+- Verifies model-provided gap objects are discarded before decoding.
+- Verifies acceptance of valid JSON despite a mislabeled Markdown fence.
+- Verifies selection of the final JSON response after a thinking block.
 - Verifies repository-relative provenance rendering.
+- Verifies selection of an LLM structured-generation capability when available.
+- Verifies deterministic completion of an exported symbol omitted by the model.
+- Verifies deterministic completion of an omitted summary and dependencies.
 - Verifies rejection of unsupported line evidence and rendering of a test scenario only when it cites a parsed assertion.
 
 # Coverage
